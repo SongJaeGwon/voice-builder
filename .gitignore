@@ -1,0 +1,11 @@
+/.env
+/__pycache__
+/audio.mp3
+/downloaded_video.mp4
+/final_tts_audio.mp3
+/final_video.mp4
+/test.py
+/test2.py
+/transcription.srt
+/translated.srt
+/trimmed_video.mp4
