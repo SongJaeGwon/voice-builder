@@ -8,6 +8,9 @@ elevenlabs = "*"
 openai-whisper = "*"
 pydub = "*"
 python-dotenv = "*"
+yt-dlp = "*"
+demucs = "*"
+openai = "*"
 
 [dev-packages]
 

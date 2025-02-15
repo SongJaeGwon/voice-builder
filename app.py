@@ -1,12 +1,16 @@
 import os
 import re
 import yt_dlp
+import json
 import subprocess
 import requests
-import whisper
+import whisperx
+import torch
+import openai
 from elevenlabs.client import ElevenLabs
 from pydub import AudioSegment
 from dotenv import load_dotenv
+from huggingface_hub import login
 
 # 🔹 .env 파일 로드
 load_dotenv()
@@ -15,10 +19,13 @@ load_dotenv()
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 DEEPL_API_KEY = os.getenv("DEEPL_API_KEY")
 API_URL = os.getenv("API_URL")
+HF_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
+OPEN_AI = os.getenv("OPEN_AI")
 
-video_url = "https://www.youtube.com/watch?v=nm6wzLMphh4"  # 변환할 유튜브 영상 링크
-target_language = "JA"  # 번역할 언어 (예: 일본어)
-voice_id = "aAi5am3XBah3myZdv6ON"  # ElevenLabs에서 학습한 목소리 ID 입력
+video_url = "https://www.youtube.com/watch?v=cQ0g6RHB4wA"  # 변환할 유튜브 영상 링크
+# target_language = "ZH-HANT"  # 번역할 언어 (예: 일본어)
+target_language = "KO"  # 번역할 언어 (예: 일본어)
+voice_id = "ir1CeAgkMhxW2txdJpxQ"  # ElevenLabs에서 학습한 목소리 ID 입력
 
 def download_youtube_video(video_url, output_filename="downloaded_video.mp4"):
     ydl_opts = {
@@ -30,7 +37,7 @@ def download_youtube_video(video_url, output_filename="downloaded_video.mp4"):
         ydl.download([video_url])
     return output_filename
 
-def trim_video(input_file, output_file="trimmed_video.mp4", start_time="00:00:30", duration="29"):
+def trim_video(input_file, output_file="trimmed_video.mp4", start_time="00:00:00", duration="300"):
     command = f"ffmpeg -i {input_file} -ss {start_time} -t {duration} -c:v copy -c:a copy {output_file} -y"
     subprocess.run(command, shell=True)
     return output_file
@@ -40,17 +47,78 @@ def extract_audio_from_video(video_file, audio_output="audio.mp3"):
     subprocess.run(command, shell=True)
     return audio_output
 
-def transcribe_audio_whisper(audio_file, model_size="medium"):
+def separate_background_audio(input_file, output_file="background_audio.mp3"):
     """
-    OpenAI Whisper를 사용하여 오디오 파일을 텍스트로 변환하고 SRT 파일을 생성
+    Demucs를 이용해 오디오 파일에서 보컬 트랙을 분리하는 함수.
+    기본적으로 demucs는 지정한 output_dir에 분리된 파일들을 저장합니다.
+
+    :param input_file: 원본 오디오 파일 (예: audio.mp3)
+    :param output_dir: Demucs가 결과를 저장할 기본 디렉토리 (기본값 "separated")
+    :return: 분리된 보컬 파일의 경로 (예: separated/{base_name}/vocals.wav)
     """
-    # 🔹 Whisper 모델 로드
-    model = whisper.load_model(model_size)
+    command = f"demucs --two-stems=vocals --out=. --filename=out.mp3 --mp3 {input_file}"
+    subprocess.run(command, shell=True, check=True)
+
+    return output_file
+
+def transcribe_audio_whisper(audio_file, model="whisper-1"):
+    """
+    OpenAI Whisper API를 사용하여 오디오 파일을 텍스트로 변환
+    """
+    client = openai.OpenAI(api_key=OPEN_AI)  # 최신 방식으로 클라이언트 초기화
+
+    # 🔹 OpenAI Whisper API 요청
+    with open(audio_file, "rb") as file:
+        response = client.audio.transcriptions.create(
+            model=model,
+            file=file,
+            response_format="verbose_json",  # JSON 형식으로 결과 요청
+        )
+
+    # 🔹 JSON으로 변환 (필수)
+    response_json = response.model_dump()  # dict() 대신 최신 버전에서는 model_dump() 사용
+
+    # 🔹 변환된 데이터 저장 (JSON)
+    with open("transcription_whisper.json", "w", encoding="utf-8") as f:
+        json.dump(response_json, f, indent=4, ensure_ascii=False)
+
+    return response_json
+
+def transcribe_audio_whisperx(audio_file, language="ko", device=None, num_speakers=None):
+    """
+    WhisperX를 사용하여 오디오 파일을 텍스트로 변환하고 SRT 파일을 생성 (다중 화자 포함)
+    """
+
+    # 🔹 디바이스 설정 (Mac 환경에서는 CPU 또는 MPS 사용)
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # GPU 사용 가능하면 CUDA, 없으면 CPU
+
+    # 🔹 WhisperX 모델 로드
+    model = whisperx.load_model("large-v2", "cpu", compute_type="float32")
+
+    audio = whisperx.load_audio(audio_file)
 
     # 🔹 오디오 변환 (STT 수행)
-    result = model.transcribe(audio_file, language="ko", word_timestamps=True)
+    transcription = model.transcribe(audio)
 
-    return result
+    # 🔹 Align (음성-텍스트 정렬)
+    align_model, align_metadata = whisperx.load_align_model(language_code=transcription["language"], device=device)
+    whisper_results = whisperx.align(transcription["segments"], align_model, align_metadata, audio, device, return_char_alignments=False)
+
+    # 🔥 다중 화자(Speaker Diarization) 모델 로드 (Hugging Face 토큰 포함)
+    diarize_model = whisperx.DiarizationPipeline(use_auth_token=HF_TOKEN, device=device)
+
+    # 🔹 화자 분리 실행
+    diarization_result = diarize_model(audio, num_speakers=num_speakers) if num_speakers else diarize_model(audio)
+
+    # 🔹 STT 결과와 화자 정보 동기화
+    whisper_results = whisperx.assign_word_speakers(diarization_result, whisper_results)
+
+    # 🔹 변환된 데이터 저장 (JSON)
+    with open("transcription_whisperx.json", "w", encoding="utf-8") as f:
+        json.dump(whisper_results, f, indent=4, ensure_ascii=False)
+
+    return whisper_results
 
 def seconds_to_srt_time(seconds):
     """ 초 단위를 SRT 형식 (HH:MM:SS,mmm)으로 변환 """
@@ -60,7 +128,7 @@ def seconds_to_srt_time(seconds):
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02}:{minutes:02}:{seconds:02},{millisec:03}"
 
-def create_srt(transcription, output_srt="output.srt"):
+def create_srt_v1(transcription, output_srt="output.srt"):
     """
     Whisper 변환 결과를 SRT 파일로 저장
     """
@@ -125,8 +193,7 @@ def translate_srt(input_srt, output_srt, src_lang="KO", target_lang="JA"):
 
 # 🔹 Step 5: ElevenLabs API를 이용해 번역된 텍스트를 음성으로 변환
 def generate_speech_with_elevenlabs(text, voice_id, output_audio):
-    api_key = "sk_8b6c5b223753891ae028b53efcacf995902fa09bcbde2b55"
-    client = ElevenLabs(api_key=api_key)
+    client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
 
     # TTS 변환 실행
     audio = client.text_to_speech.convert(
@@ -177,27 +244,44 @@ def generate_tts_with_timestamps(srt_file, voice_id, output_audio="final_tts_aud
     번역된 SRT 파일을 기반으로, 타임스탬프를 고려한 음성을 생성하고 하나의 파일로 병합
     """
     subtitles = parse_srt(srt_file)
-    final_audio = AudioSegment.silent(duration=int(subtitles[-1]["end"] * 1000))  # 마지막 타임스탬프까지 빈 오디오 생성
+    
+    # 🔹 최종 합칠 오디오 리스트
+    combined_audio = AudioSegment.silent(duration=0)
     
     for idx, subtitle in enumerate(subtitles):
         text = subtitle["text"]
         start_time = int(subtitle["start"] * 1000)  # 밀리초 단위로 변환
+        end_time = int(subtitle["end"] * 1000)  # 종료 시간 (ms)
+        duration = end_time - start_time  # 해당 구간 길이 (ms)
+
         tts_filename = f"temp_{idx}.mp3"
 
         # 🔹 ElevenLabs TTS 생성
         generate_speech_with_elevenlabs(text, voice_id, tts_filename)
-        
+
         # 🔹 TTS 오디오 로드
         tts_audio = AudioSegment.from_file(tts_filename)
-        
-        # 🔹 타임스탬프에 맞게 배치
-        final_audio = final_audio.overlay(tts_audio, position=start_time)
+        tts_duration = len(tts_audio)  # 실제 생성된 음성 길이 (ms)
 
-        # 임시 파일 삭제
+        # 🔹 음성 길이 조정
+        if tts_duration > duration:
+            speed_factor = tts_duration / duration  # 줄여야 하는 배속 비율 계산
+            print(f"⚠️ 생성된 TTS({tts_duration}ms)가 원본보다 김({duration}ms), {speed_factor:.2f}배 속도로 빠르게 재생")
+            tts_audio = tts_audio.speedup(playback_speed=speed_factor)  # 속도 증가
+        elif tts_duration < duration:
+            print(f"⚠️ 생성된 TTS({tts_duration}ms)가 원본보다 짧음({duration}ms), 패딩 추가")
+            silence = AudioSegment.silent(duration=duration - tts_duration)  # 짧은 경우, 무음 추가
+            tts_audio = tts_audio + silence
+
+        # 🔹 음성 삽입 (중간에 공백을 넣어야 함)
+        silence_gap = AudioSegment.silent(duration=start_time - len(combined_audio))
+        combined_audio = combined_audio + silence_gap + tts_audio
+
+        # 🔹 임시 파일 삭제
         os.remove(tts_filename)
 
     # 🔹 최종 오디오 파일 저장
-    final_audio.export(output_audio, format="mp3")
+    combined_audio.export(output_audio, format="mp3")
     print(f"✅ 타임스탬프가 고려된 음성 파일 생성 완료: {output_audio}")
     return output_audio
 
@@ -210,7 +294,9 @@ def merge_audio_with_video(original_video, new_audio, output_video="final_video.
 # 🔹 Step 7: 전체 파이프라인 실행
 def process_video(video_url, target_language="JA", voice_id="YOUR_VOICE_ID"):
     print("📥 1. 유튜브 영상 다운로드 중...")
-    video_file = download_youtube_video(video_url)
+    # video_file = download_youtube_video(video_url)
+
+    video_file = "정연_중국어.mp4"
 
     print("✂️ FFmpeg로 30초 길이로 자르기...")
     trimmed_video = trim_video(video_file)
@@ -218,14 +304,22 @@ def process_video(video_url, target_language="JA", voice_id="YOUR_VOICE_ID"):
     print("🎙️ 2. 오디오 추출 중...")
     audio_file = extract_audio_from_video(trimmed_video)
 
+    # Demucs를 실행하여 배경음 트랙 분리
+    try:
+        print("🎚️ 2-1. Demucs로 보컬 분리 중...")
+        separate_background_audio(audio_file)
+    except Exception as e:
+        print("❌ 보컬 분리 실패:", e)
+        return
+
     print("📝 3. 음성 → 텍스트 변환 중...")
     original_text = transcribe_audio_whisper(audio_file)
 
     print("📝 4. SRT 파일 생성 중...")
-    create_srt(original_text, "transcription.srt")
+    create_srt_v1(original_text, "transcription.srt")
 
     print(f"🌍 5. 번역 중... (언어: {target_language})")
-    translated_srt = translate_srt("transcription.srt", "translated.srt", src_lang="KO", target_lang=target_language)
+    translated_srt = translate_srt("transcription.srt", "translated.srt", src_lang="ZH-HANT", target_lang=target_language)
 
     if translated_srt is None:
         print("❌ 번역 실패: SRT 파일이 생성되지 않았습니다.")
@@ -234,9 +328,23 @@ def process_video(video_url, target_language="JA", voice_id="YOUR_VOICE_ID"):
     print("🔊 6. 타임스탬프 기반 TTS 생성 중...")
     translated_audio = generate_tts_with_timestamps(translated_srt, voice_id)
 
-    if translated_audio:
+    # Merge the translated audio with background audio
+    print("🎵 6-1. background audio 합치는 중...")
+    translated_audio_segment = AudioSegment.from_file(translated_audio)
+    background_audio_segment = AudioSegment.from_file("./htdemucs/out.mp3")
+
+    # Ensure both audio segments are the same length
+    background_length = len(background_audio_segment)
+    translated_length = len(translated_audio_segment)
+    if background_length > translated_length:
+        background_audio_segment = background_audio_segment[:translated_length]
+
+    final_audio = translated_audio_segment.overlay(background_audio_segment)
+    final_audio.export(translated_audio, format="mp3")
+
+    if final_audio:
         print("🎬 7. 새로운 음성을 원본 영상에 합치기...")
-        final_video = merge_audio_with_video(video_file, translated_audio)
+        final_video = merge_audio_with_video(trimmed_video, translated_audio)
         print("✅ 변환 완료! 최종 파일:", final_video)
     else:
         print("❌ 오류 발생: 새로운 음성 생성 실패.")
