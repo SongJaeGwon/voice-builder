@@ -11,6 +11,7 @@ python-dotenv = "*"
 yt-dlp = "*"
 demucs = "*"
 openai = "*"
+gradio = "*"
 
 [dev-packages]
 

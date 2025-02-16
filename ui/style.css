@@ -1,0 +1,12 @@
+:root {
+  --message-list-background-hover: #f3f3f3;
+  --message-list-background-selected: #eaeaea;
+}
+
+.header {
+  height: 57px;
+  padding: 0;
+}
+.header h2 {
+  padding: 0 16px;
+}
