@@ -9,7 +9,7 @@ from video_processing.tts import generate_tts_with_timestamps
 from video_processing.merging import merge_audio_with_video, merge_background_with_tts
 from video_processing.file_manager import get_file_path
 
-def process_video(video_url, source_lang, target_lang, voice_id):
+def process_video(video_url, source_lang, target_lang, voice_id, num_speakers):
 
     # 1. 영상 다운로드
     print("📥 1. 유튜브 영상 다운로드 중...")
@@ -29,7 +29,7 @@ def process_video(video_url, source_lang, target_lang, voice_id):
     
     # 5. 음성 → 텍스트 변환 (Whisper)
     print("📝 5. 음성 → 텍스트 변환 중...")
-    transcription = transcribe_audio_whisper(audio_file)
+    transcription = transcribe_audio_whisper(audio_file, num_speakers)
 
     # 6. Whisper json -> .srt 파일 변환
     print("📝 6. Whisper json -> .srt 파일 변환...")
@@ -76,9 +76,10 @@ def regenerate_video_from_srt(voice_id):
 
 
 if __name__ == "__main__":
-    video_url = "https://www.youtube.com/watch?v=cQ0g6RHB4wA"  # 로컬 파일 경로 또는 다운로드 URL
+    video_url = "https://www.youtube.com/watch?v=QdH2THTzwlI"  # 로컬 파일 경로 또는 다운로드 URL
     source_lang = "KO" # 원본파일 언어
     target_lang = "EN" # 번역할 언어
     voice_id = "ir1CeAgkMhxW2txdJpxQ" # 일레븐랩스 보이스 id
+    num_speakers = None; # 화자 몇명인지
 
-    process_video(video_url, source_lang, target_lang, voice_id)
+    process_video(video_url, source_lang, target_lang, voice_id, num_speakers)

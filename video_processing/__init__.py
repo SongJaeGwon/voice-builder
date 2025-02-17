@@ -8,5 +8,6 @@ import subprocess
 import requests
 from pydub import AudioSegment
 from elevenlabs.client import ElevenLabs
+from pyannote.audio.pipelines import SpeakerDiarization
 from .file_manager import get_file_path
 from .srt_utils import parse_srt
