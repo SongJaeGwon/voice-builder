@@ -52,6 +52,7 @@ def process_video(video_url, source_lang, target_lang, voice_id):
     final_video = merge_audio_with_video(trimmed_video, tts_audio)
     
     print("✅ 최종 파일 생성:", final_video)
+    return final_video
 
 if __name__ == "__main__":
     video_url = "https://www.youtube.com/watch?v=hSWsDc0h5g8"  # 로컬 파일 경로 또는 다운로드 URL

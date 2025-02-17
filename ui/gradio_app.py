@@ -1,17 +1,37 @@
 import gradio as gr
-from ui_functions import get_voice_list
-from ui_functions import selected_upload_method
+import os
+import sys
+import time
+
+from ui.functions import get_voice_list
+from ui.functions import selected_upload_method
+from ui.functions import parse_srt_files
+from ui.functions import write_srt_file
+from ui.functions import remove_duplicate_start_times
+from ui.functions import update_srt_dataset
 
 from video_processing.downloader import download_youtube_video
+from video_processing.trimmer import trim_video
+from video_processing.audio_extractor import extract_audio_from_video
+from video_processing.vocal_separation import separate_background_audio
+from video_processing.transcription import transcribe_audio_whisper
+from video_processing.srt_utils import create_srt
+from video_processing.translation import translate_srt
+from video_processing.tts import generate_tts_with_timestamps
+from video_processing.merging import merge_audio_with_video, merge_background_with_tts
+from video_processing.file_manager import get_file_path
 
+from main import process_video
 CSS_PATH = "ui/style.css"
 
 available_languages = ["KO"]
 target_languages = ["EN", "JA", "ZH-HANT"]
 voice_models = get_voice_list()
 
-def srt_builder():
-    print('good!')
+# Config 파일 로드를 위한 경로 추가
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
 # <---------- GUI ---------->
 with gr.Blocks(
@@ -71,16 +91,7 @@ with gr.Blocks(
                 fn=lambda: selected_upload_method("url"),
                 outputs=active_tab_state
             )
-            convert_btn = gr.Button("🔘 변환 시작")
-            # convert_btn.click(
-            #     fn=lambda tab: f"{tab} 변환 중...",
-            #     inputs=active_tab_state,
-            #     outputs=convert_btn
-            # )
-            convert_btn.click(
-                fn=lambda url: download_youtube_video(url),
-                inputs=input_url,
-            )
+            start_btn = gr.Button("🔘 전체 시작")
         with gr.Column(scale=3):
             output_video = gr.PlayableVideo(
                 label="변환된 동영상",
@@ -88,61 +99,61 @@ with gr.Blocks(
             )
             with gr.Group():
                 with gr.Row():
-                    textbox_start = gr.Textbox(label="start", placeholder="숫자 입력")
-                    textbox_end = gr.Textbox(label="end", placeholder="숫자 입력")
+                    textbox_start = gr.Textbox(label="start", interactive=True, placeholder="숫자 입력")
+                    textbox_end = gr.Textbox(label="end", interactive=True, placeholder="숫자 입력")
                 with gr.Row():
-                    textbox_original = gr.Textbox(label="원본", placeholder="번역 전")
-                    textbox_translation = gr.Textbox(label="번역", placeholder="번역 후")
+                    textbox_original = gr.Textbox(label="원본", interactive=True, placeholder="번역 전")
+                    textbox_translation = gr.Textbox(label="번역", interactive=True, placeholder="번역 후")
 
                 update_srt_btn = gr.Button("수정하기")
 
 
-            examples = gr.Examples(
-                examples=[
-                    ["0", "1", "2test test test test test", "2test test test test test"],
-                    ["1", "2", "2", "2"],
-                    ["2", "3", "2.5", "2"],
-                    ["3", "4", "1.2", "2"]
-                ],
+            srt_examples = gr.Examples(
+                label="자막 (srt 파일)",
+                examples_per_page=50,
+                examples=[["00:00:00,000", "00:00:01,000", "예시", "example"]],
                 inputs=[textbox_start, textbox_end, textbox_original, textbox_translation],
             )
 
         with gr.Column(scale=1):
             with gr.Group():
                 gr.Label("⚙️ 제어판", show_label=False, elem_classes="header")
-                retranslate_btn = gr.Button("다시 번역하기")
+                retranslate_btn = gr.Button("📝 번역 재시도", interactive=False)
+                regenerate_video_btn = gr.Button("🔃 영상 재생성", interactive=False)
 
-                final_btn = gr.Button("최종 영상 생성")
-                progress_label = gr.Textbox(label="진행 상황")
+                progress_label = gr.Textbox(label="진행 상황", interactive=False)
 
-            d = gr.DownloadButton("Download the file", visible=True, variant="primary")
-    # with gr.Row():
-        # progress_label.visible = True
-        # progress_label.label = "진행 상황"
-        # progress_label = gr.Textbox(label="진행 상황")
+            d = gr.DownloadButton("변환된 영상 다운로드", visible=True, variant="primary", value="downloads/final_video.mp4")
 
+    # <---------- 전체 시작 버튼 ---------->
+    start_btn.click(
+        lambda: gr.Button(interactive=False),
+        inputs=[],
+        outputs=[start_btn]
+    ).success(
+        fn=lambda input_url, original_language, target_language, selected_voice: process_video(input_url, original_language, target_language, selected_voice.split("(")[-1].rstrip(")").strip()),
+        inputs=[input_url, original_language, target_language, selected_voice],
+        outputs=progress_label
+    ).success(
+        fn=lambda video_path: video_path,
+        inputs=[progress_label],
+        outputs=[output_video]
+    ).success(
+        fn=lambda: gr.Dataset(samples=parse_srt_files('downloads/transcription.srt', 'downloads/translated.srt')),
+        inputs=[],
+        outputs=[srt_examples.dataset]
+    ).success(
+        lambda: gr.Button(interactive=True),
+        inputs=[],
+        outputs=[start_btn]
+    )
 
-    # with gr.Row(elem_classes="col-container"):
-    #     with gr.Column(elem_id="history"):
-    #         with gr.Row():
-    #             add_dialog = gr.ClearButton(
-    #                 # components=[chat_his],
-    #                 icon=r"icon\add_dialog.png",
-    #                 #variant="primary",
-    #                 # value=i18n("New Dialog"),
-    #                 min_width=5,
-    #                 elem_id="btn_transparent",
-    #                 size="sm"
-    #             )
-    #             delete_dialog = gr.Button(
-    #                 icon=r"icon\delete_dialog.png",
-    #                 # value=i18n("Delete Dialog"),
-    #                 min_width=5,
-    #                 elem_id="btn_transparent",
-    #                 size="sm",
-    #             )
-
-# <---------- 동영상 업로드 // 유튜브 URL Tab ---------->
+    # <---------- 자막 수정하기 버튼 ---------->
+    update_srt_btn.click(
+        fn=update_srt_dataset,
+        inputs=[textbox_start, textbox_end, textbox_original, textbox_translation],
+        outputs=[srt_examples.dataset, textbox_start, textbox_end, textbox_original, textbox_translation]
+    )
 
 if __name__ == "__main__":
     demo.launch()
