@@ -22,6 +22,9 @@ from video_processing.merging import merge_audio_with_video, merge_background_wi
 from video_processing.file_manager import get_file_path
 
 from main import process_video
+from main import regenerate_video_from_srt
+
+
 CSS_PATH = "ui/style.css"
 
 available_languages = ["KO"]
@@ -91,7 +94,7 @@ with gr.Blocks(
                 fn=lambda: selected_upload_method("url"),
                 outputs=active_tab_state
             )
-            start_btn = gr.Button("🔘 전체 시작")
+            start_btn = gr.Button("🔲 전체 시작")
         with gr.Column(scale=3):
             output_video = gr.PlayableVideo(
                 label="변환된 동영상",
@@ -127,7 +130,7 @@ with gr.Blocks(
 
     # <---------- 전체 시작 버튼 ---------->
     start_btn.click(
-        lambda: gr.Button(interactive=False),
+        lambda: gr.Button(interactive=False, value="🔳 전체 시작"),
         inputs=[],
         outputs=[start_btn]
     ).success(
@@ -143,9 +146,9 @@ with gr.Blocks(
         inputs=[],
         outputs=[srt_examples.dataset]
     ).success(
-        lambda: gr.Button(interactive=True),
+        lambda: [gr.Button(interactive=True, value="🔲 전체 재시작"), gr.Button(interactive=True)],
         inputs=[],
-        outputs=[start_btn]
+        outputs=[start_btn, regenerate_video_btn]
     )
 
     # <---------- 자막 수정하기 버튼 ---------->
@@ -153,6 +156,13 @@ with gr.Blocks(
         fn=update_srt_dataset,
         inputs=[textbox_start, textbox_end, textbox_original, textbox_translation],
         outputs=[srt_examples.dataset, textbox_start, textbox_end, textbox_original, textbox_translation]
+    )
+
+    # <---------- 영상 재생성 버튼 ---------->
+    regenerate_video_btn.click(
+        fn=lambda selected_voice: regenerate_video_from_srt(selected_voice.split("(")[-1].rstrip(")").strip()),
+        inputs=[selected_voice],
+        outputs=[output_video]
     )
 
 if __name__ == "__main__":

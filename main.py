@@ -54,6 +54,23 @@ def process_video(video_url, source_lang, target_lang, voice_id):
     print("✅ 최종 파일 생성:", final_video)
     return final_video
 
+def regenerate_video_from_srt(voice_id):
+    # 7. 타임스탬프 기반 TTS 생성
+    print("🔊 7. 타임스탬프 기반 TTS 생성 중...")
+    tts_audio = generate_tts_with_timestamps(get_file_path("translated.srt"), voice_id)
+
+    # 8. 배경음과 TTS 합성
+    print("🎵 8. background audio 합치는 중...")
+    merge_background_with_tts(tts_audio)
+
+    # 9. 최종 영상과 음성 병합
+    print("🎬 9. 새로운 음성을 원본 영상에 합치기...")
+    final_video = merge_audio_with_video(get_file_path("trimmed_video.mp4"), tts_audio)
+
+    print("✅ 최종 파일 생성:", final_video)
+    return final_video
+
+
 if __name__ == "__main__":
     video_url = "https://www.youtube.com/watch?v=hSWsDc0h5g8"  # 로컬 파일 경로 또는 다운로드 URL
     source_lang = "KO" # 원본파일 언어
