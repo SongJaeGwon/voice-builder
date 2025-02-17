@@ -9,7 +9,7 @@ from video_processing.tts import generate_tts_with_timestamps
 from video_processing.merging import merge_audio_with_video, merge_background_with_tts
 from video_processing.file_manager import get_file_path
 
-def process_video(video_url, source_lang, target_lang, voice_id, num_speakers):
+def process_video(video_url, source_lang, target_lang, voice_id, num_speakers=None):
 
     # 1. 영상 다운로드
     print("📥 1. 유튜브 영상 다운로드 중...")
