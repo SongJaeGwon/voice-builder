@@ -2,7 +2,7 @@ from video_processing.downloader import download_youtube_video
 from video_processing.trimmer import trim_video
 from video_processing.audio_extractor import extract_audio_from_video
 from video_processing.vocal_separation import separate_background_audio
-from video_processing.transcription import transcribe_audio_whisper
+from video_processing.transcription import transcribe_audio_whisper, refine_srt_with_gpt
 from video_processing.srt_utils import create_srt
 from video_processing.translation import translate_srt
 from video_processing.tts import generate_tts_with_timestamps
@@ -33,22 +33,26 @@ def process_video(video_url, source_lang, target_lang, voice_id):
 
     # 6. Whisper json -> .srt 파일 변환
     print("📝 6. Whisper json -> .srt 파일 변환...")
-    create_srt(transcription)
+    srt_path = create_srt(transcription)
     
+    # 7. GPT로 자막 다듬기
+    print("🤖 7. GPT로 자막 다듬기...")
+    refine_srt_with_gpt(srt_path, get_file_path("transcription_refined.srt"))
+
     # 6. SRT 번역 (예: source_lang → target_lang)
-    print(f"🌍 6. 번역 중... (언어: {target_lang})")
-    translated_srt = translate_srt(get_file_path("transcription.srt"), get_file_path("translated.srt"), source_lang, target_lang)
+    print(f"🌍 8. 번역 중... (언어: {target_lang})")
+    translated_srt = translate_srt(get_file_path("transcription_refined.srt"), get_file_path("translated.srt"), source_lang, target_lang)
     
     # 7. 타임스탬프 기반 TTS 생성
-    print("🔊 7. 타임스탬프 기반 TTS 생성 중...")
+    print("🔊 9. 타임스탬프 기반 TTS 생성 중...")
     tts_audio = generate_tts_with_timestamps(translated_srt, voice_id)
     
     # 8. 배경음과 TTS 합성
-    print("🎵 8. background audio 합치는 중...")
+    print("🎵 10. background audio 합치는 중...")
     merge_background_with_tts(tts_audio)
     
     # 9. 최종 영상과 음성 병합
-    print("🎬 9. 새로운 음성을 원본 영상에 합치기...")
+    print("🎬 11. 새로운 음성을 원본 영상에 합치기...")
     final_video = merge_audio_with_video(trimmed_video, tts_audio)
     
     print("✅ 최종 파일 생성:", final_video)
@@ -72,7 +76,7 @@ def regenerate_video_from_srt(voice_id):
 
 
 if __name__ == "__main__":
-    video_url = "https://www.youtube.com/watch?v=hSWsDc0h5g8"  # 로컬 파일 경로 또는 다운로드 URL
+    video_url = "https://www.youtube.com/watch?v=cQ0g6RHB4wA"  # 로컬 파일 경로 또는 다운로드 URL
     source_lang = "KO" # 원본파일 언어
     target_lang = "EN" # 번역할 언어
     voice_id = "ir1CeAgkMhxW2txdJpxQ" # 일레븐랩스 보이스 id

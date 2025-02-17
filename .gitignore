@@ -1,3 +1,4 @@
 /.env
 /downloads
 /video_processing/__pycache__
+/__pycache__
