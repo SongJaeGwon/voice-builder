@@ -6,6 +6,8 @@ import yt_dlp
 import openai
 import subprocess
 import requests
+import torch
+import torchaudio
 from pydub import AudioSegment
 from elevenlabs.client import ElevenLabs
 from pyannote.audio.pipelines import SpeakerDiarization

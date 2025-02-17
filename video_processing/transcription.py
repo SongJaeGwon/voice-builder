@@ -15,7 +15,7 @@ def transcribe_audio_whisper(audio_file, num_speakers=None, model="whisper-1"):
             model=model,
             file=file,
             response_format="verbose_json",
-            timestamp_granularities=["segment", "word"]
+            timestamp_granularities=["segment", "word"],
         )
 
     response_json = response.model_dump()

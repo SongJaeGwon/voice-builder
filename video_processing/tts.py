@@ -1,5 +1,47 @@
-from video_processing import os, AudioSegment, ElevenLabs, subprocess, parse_srt, get_file_path
+from video_processing import os, AudioSegment, ElevenLabs, subprocess, torchaudio, torch, parse_srt, get_file_path
 from config import ELEVENLABS_API_KEY
+
+def extract_speech_with_elevenlabs(input_audio, output_audio):
+    output_path = get_file_path(output_audio)
+
+    client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+
+    # 🎙️ Step 1: ElevenLabs API 호출 (음성만 분리)
+    with open(input_audio, "rb") as audio_file:
+        audio = client.audio_isolation.audio_isolation(audio=audio_file)
+        audio_bytes = b"".join(chunk for chunk in audio)
+
+    temp_audio_path = output_path.replace(".mp3", "_temp.mp3")
+
+    # 🔽 Step 2: API에서 받은 오디오 저장 (임시 파일)
+    with open(temp_audio_path, "wb") as f:
+        f.write(audio_bytes)
+
+    # 🔄 Step 3: 오디오를 16kHz 샘플링 속도로 변환
+    waveform, sample_rate = torchaudio.load(temp_audio_path)
+
+    if sample_rate != 16000:
+        resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
+        waveform = resampler(waveform)
+
+    # 🛠️ Step 4: 길이가 다른 오디오 조각 맞추기 (Padding)
+    def pad_audio(waveform, target_length=160000):
+        """오디오를 특정 길이로 패딩"""
+        current_length = waveform.shape[1]  # 채널 x 샘플 수
+        if current_length < target_length:
+            pad_size = target_length - current_length
+            waveform = torch.nn.functional.pad(waveform, (0, pad_size), mode="constant", value=0)
+        return waveform
+
+    padded_waveform = pad_audio(waveform)
+
+    # 🎧 Step 5: 최종 오디오 저장
+    torchaudio.save(output_path, padded_waveform, 16000)
+
+    # 🔄 Step 6: 임시 파일 삭제
+    os.remove(temp_audio_path)
+
+    return output_path
 
 def generate_tts_with_timestamps(srt_file, voice_id, filename="tts_audio.mp3"):
     output_path = get_file_path(filename)
