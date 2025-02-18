@@ -85,6 +85,20 @@ with gr.Blocks(
                 input_video = gr.Video(
                     label="동영상 파일",
                 )
+            with gr.Row():
+                timestamp_start = gr.Textbox(
+                    label="시작 - 종료 시간",
+                    value="00:00:00",
+                    placeholder="00:00:00",
+                    max_length=8,
+                    interactive=True,
+                )
+                timestamp_end = gr.Textbox(
+                    elem_id="timestamp_end",
+                    value=("00:00:30"),
+                    max_length=8,
+                    interactive=True,
+                )
 
             tab_file.select(
                 fn=lambda: selected_upload_method("file"),
@@ -134,8 +148,8 @@ with gr.Blocks(
         inputs=[],
         outputs=[start_btn]
     ).success(
-        fn=lambda input_url, original_language, target_language, selected_voice: process_video(input_url, original_language, target_language, selected_voice.split("(")[-1].rstrip(")").strip()),
-        inputs=[input_url, original_language, target_language, selected_voice],
+        fn=lambda input_url, original_language, target_language, selected_voice, timestamp_start, timestamp_end: process_video(input_url, original_language, target_language, selected_voice.split("(")[-1].rstrip(")").strip(), timestamp_start, timestamp_end),
+        inputs=[input_url, original_language, target_language, selected_voice, timestamp_start, timestamp_end],
         outputs=progress_label
     ).success(
         fn=lambda video_path: video_path,

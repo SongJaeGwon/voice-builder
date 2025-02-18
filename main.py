@@ -9,7 +9,7 @@ from video_processing.tts import generate_tts_with_timestamps, extract_speech_wi
 from video_processing.merging import merge_audio_with_video, merge_background_with_tts
 from video_processing.file_manager import get_file_path
 
-def process_video(video_url, source_lang, target_lang, voice_id, num_speakers=None):
+def process_video(video_url, source_lang, target_lang, voice_id, start_time="00:00:00", end_time="00:00:30", num_speakers=None):
 
     # 1. 영상 다운로드
     print("📥 1. 유튜브 영상 다운로드 중...")
@@ -17,7 +17,7 @@ def process_video(video_url, source_lang, target_lang, voice_id, num_speakers=No
 
     # 2. 영상 자르기
     print("2. FFmpeg로 영상 자르기...")
-    trimmed_video = trim_video(video_file, "trimmed_video.mp4")
+    trimmed_video = trim_video(video_file, start_time, end_time)
     
     # 3. 오디오 추출
     print("🎙️ 3. 오디오 추출 중...")
