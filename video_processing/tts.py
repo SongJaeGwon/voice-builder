@@ -117,6 +117,8 @@ def adjust_audio_speed(input_audio, output_audio, speed_factor):
     command = [
         "ffmpeg", "-i", input_audio, 
         "-filter:a", f"atempo={speed_factor}", 
-        "-vn", output_audio
+        "-vn", output_audio,
+        "-loglevel", "error",
+        "-y"
     ]
     subprocess.run(command, check=True)
