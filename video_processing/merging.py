@@ -2,7 +2,7 @@ from video_processing import subprocess, AudioSegment, get_file_path
 
 def merge_audio_with_video(original_video, new_audio, filename="final_video.mp4"):
     output_path = get_file_path(filename)
-    command = f"ffmpeg -i {original_video} -i {new_audio} -c:v copy -map 0:v:0 -map 1:a:0 -shortest {output_path} -y"
+    command = f"ffmpeg -i {original_video} -i {new_audio} -c:v copy -map 0:v:0 -map 1:a:0 -shortest {output_path} -loglevel error -y"
     subprocess.run(command, shell=True, check=True)
     return output_path
 

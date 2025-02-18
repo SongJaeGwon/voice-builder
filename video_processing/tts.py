@@ -1,4 +1,4 @@
-from video_processing import os, AudioSegment, ElevenLabs, subprocess, torchaudio, torch, parse_srt, get_file_path
+from video_processing import os, AudioSegment, ElevenLabs, subprocess, torchaudio, torch, requests, parse_srt, get_file_path
 from config import ELEVENLABS_API_KEY
 
 def extract_speech_with_elevenlabs(input_audio, output_audio):
@@ -47,6 +47,7 @@ def generate_tts_with_timestamps(srt_file, voice_id, filename="tts_audio.mp3"):
     output_path = get_file_path(filename)
     subtitles = parse_srt(srt_file)
     combined_audio = AudioSegment.silent(duration=0)
+    previous_ids = []
 
     for idx, subtitle in enumerate(subtitles):
         text = subtitle["text"]
@@ -56,7 +57,11 @@ def generate_tts_with_timestamps(srt_file, voice_id, filename="tts_audio.mp3"):
 
         temp_tts_file = f"temp_{idx}.mp3"
         
-        generate_speech_with_elevenlabs(text, voice_id, temp_tts_file)
+        request_id = generate_speech_with_elevenlabs(text, voice_id, temp_tts_file, previous_ids)
+
+        if request_id:
+            previous_ids.append(request_id)  # 새 ID 추가
+            previous_ids = previous_ids[-3:]  # 최대 3개까지만 유지
 
         tts_audio = AudioSegment.from_file(temp_tts_file)
         tts_duration = len(tts_audio)
@@ -99,19 +104,42 @@ def generate_tts_with_timestamps(srt_file, voice_id, filename="tts_audio.mp3"):
 
     return output_path
 
-def generate_speech_with_elevenlabs(text, voice_id, output_audio):
-    client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+def generate_speech_with_elevenlabs(text, voice_id, output_audio, previous_request_ids=None):
 
-    audio_generator = client.text_to_speech.convert(
-        voice_id=voice_id,
-        output_format="mp3_44100_128",
-        text=text,
-        model_id="eleven_multilingual_v2"
-    )
-    audio_bytes = b"".join(audio_generator)
+    # 요청 본문 구성
+    request_data = {
+        "voice_id": voice_id,
+        "output_format": "mp3_44100_128",
+        "text": text,
+        "model_id": "eleven_multilingual_v2"
+    }
 
-    with open(output_audio, "wb") as f:
-        f.write(audio_bytes)
+    if previous_request_ids:
+        request_data["previous_request_ids"] = previous_request_ids
+
+    # API 요청
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    headers = {
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(url, headers=headers, json=request_data)
+
+    if response.status_code == 200:
+        audio_bytes = response.content
+
+        # 오디오 파일 저장
+        with open(output_audio, "wb") as f:
+            f.write(audio_bytes)
+
+        # 응답 헤더에서 request_id 추출
+        request_id = response.headers.get("request-id")
+
+        return request_id
+    else:
+        print(f"⚠️ 오류 발생: {response.status_code} - {response.text}")
+        return None
 
 def adjust_audio_speed(input_audio, output_audio, speed_factor):
     command = [

@@ -17,7 +17,7 @@ def process_video(video_url, source_lang, target_lang, voice_id, num_speakers=No
 
     # 2. 영상 자르기
     print("2. FFmpeg로 영상 자르기...")
-    trimmed_video = trim_video(video_file)
+    trimmed_video = trim_video(video_file, "trimmed_video.mp4")
     
     # 3. 오디오 추출
     print("🎙️ 3. 오디오 추출 중...")
@@ -80,9 +80,9 @@ def regenerate_video_from_srt(voice_id):
 
 
 if __name__ == "__main__":
-    video_url = "https://www.youtube.com/watch?v=QdH2THTzwlI"  # 로컬 파일 경로 또는 다운로드 URL
+    video_url = "https://www.youtube.com/watch?v=usI6YvqXulE"  # 로컬 파일 경로 또는 다운로드 URL
     source_lang = "KO" # 원본파일 언어
-    target_lang = "EN" # 번역할 언어
+    target_lang = "ZH-HANT" # 번역할 언어
     voice_id = "ir1CeAgkMhxW2txdJpxQ" # 일레븐랩스 보이스 id
     num_speakers = None; # 화자 몇명인지
 
