@@ -29,7 +29,7 @@ def process_video(video_url, source_lang, target_lang, voice_id, start_time="00:
     
     # 5. isolation 음성 분리
     print("🎙️ 5. isolation 음성 분리 중...")
-    isolation_audio = extract_speech_with_elevenlabs(audio_file, "isolation_audio.mp3")
+    isolation_audio = extract_speech_with_elevenlabs(audio_file, "isolation_audio.wav")
 
     # 6. 음성 → 텍스트 변환 (Whisper)
     print("📝 6. 음성 → 텍스트 변환 중...")
@@ -80,10 +80,13 @@ def regenerate_video_from_srt(voice_id):
 
 
 if __name__ == "__main__":
-    video_url = "https://www.youtube.com/watch?v=usI6YvqXulE"  # 로컬 파일 경로 또는 다운로드 URL
+    video_url = "https://www.youtube.com/watch?v=A-ObLLp6GYc"  # 로컬 파일 경로 또는 다운로드 URL
     source_lang = "KO" # 원본파일 언어
-    target_lang = "ZH-HANT" # 번역할 언어
+    target_lang = "EN" # 번역할 언어
     voice_id = "ir1CeAgkMhxW2txdJpxQ" # 일레븐랩스 보이스 id
-    num_speakers = None; # 화자 몇명인지
+    start_time = "00:00:00"
+    end_time = "00:00:30"
+    num_speakers = 3; # 화자 몇명인지
 
-    process_video(video_url, source_lang, target_lang, voice_id, num_speakers)
+    # regenerate_video_from_srt(voice_id)
+    process_video(video_url, source_lang, target_lang, voice_id, start_time, end_time, num_speakers)

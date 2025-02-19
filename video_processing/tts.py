@@ -11,7 +11,7 @@ def extract_speech_with_elevenlabs(input_audio, output_audio):
         audio = client.audio_isolation.audio_isolation(audio=audio_file)
         audio_bytes = b"".join(chunk for chunk in audio)
 
-    temp_audio_path = output_path.replace(".mp3", "_temp.mp3")
+    temp_audio_path = output_path.replace(".wav", "_temp.wav")
 
     # 🔽 Step 2: API에서 받은 오디오 저장 (임시 파일)
     with open(temp_audio_path, "wb") as f:
@@ -43,17 +43,26 @@ def extract_speech_with_elevenlabs(input_audio, output_audio):
 
     return output_path
 
-def generate_tts_with_timestamps(srt_file, voice_id, filename="tts_audio.mp3"):
+def generate_tts_with_timestamps(srt_file, default_voice_id, filename="tts_audio.mp3"):
     output_path = get_file_path(filename)
     subtitles = parse_srt(srt_file)
     combined_audio = AudioSegment.silent(duration=0)
     previous_ids = []
 
+    SPEAKER_VOICE_MAP = {
+        "SPEAKER_00": "wK2ecfMAOpcxAVpCWcbM",  # 신규진
+        "SPEAKER_01": "NPbcnWITbx0yts3UOKWq",  # 정재희
+        "SPEAKER_02": "kCTvpt8VOkjU7jZ7XB2w",  # 탁재훈
+    }
+
     for idx, subtitle in enumerate(subtitles):
         text = subtitle["text"]
+        speaker = subtitle["speaker"]
         start_ms = int(subtitle["start"] * 1000)
         end_ms = int(subtitle["end"] * 1000)
         duration_ms = end_ms - start_ms
+
+        voice_id = SPEAKER_VOICE_MAP.get(speaker, default_voice_id)  # 기본값 적용
 
         temp_tts_file = f"temp_{idx}.mp3"
         
@@ -77,7 +86,7 @@ def generate_tts_with_timestamps(srt_file, voice_id, filename="tts_audio.mp3"):
             # FFmpeg을 이용해 배속 조정
             adjust_audio_speed(temp_tts_file, adjusted_tts_file, speed_factor)
 
-            print(f"   ▶ 길이 초과 → {speed_factor:.2f}배속 적용 (FFmpeg 사용)")
+            print(f"   ▶ 길이 초과 → {speed_factor:.2f}배속 적용")
 
             # 변환된 오디오 다시 불러오기
             tts_audio = AudioSegment.from_file(adjusted_tts_file)
@@ -86,12 +95,11 @@ def generate_tts_with_timestamps(srt_file, voice_id, filename="tts_audio.mp3"):
             silence = AudioSegment.silent(duration=duration_ms - tts_duration)
             tts_audio = tts_audio + silence
 
-        current_duration = len(combined_audio)
-        audio_start = current_duration
+        audio_start = start_ms
         audio_end = audio_start + len(tts_audio)
 
-        if start_ms > current_duration:
-            gap = AudioSegment.silent(duration=start_ms - current_duration)
+        if start_ms > len(combined_audio):
+            gap = AudioSegment.silent(duration=audio_start - len(combined_audio))
             combined_audio += gap
 
         combined_audio += tts_audio
@@ -142,11 +150,12 @@ def generate_speech_with_elevenlabs(text, voice_id, output_audio, previous_reque
         return None
 
 def adjust_audio_speed(input_audio, output_audio, speed_factor):
+    """
+    FFmpeg을 사용하여 속도를 자연스럽게 조정 (rubberband 필터 적용)
+    """
     command = [
-        "ffmpeg", "-i", input_audio, 
-        "-filter:a", f"atempo={speed_factor}", 
-        "-vn", output_audio,
-        "-loglevel", "error",
-        "-y"
+        "ffmpeg", "-i", input_audio,
+        "-filter:a", f"rubberband=pitch=1.0:tempo={speed_factor}",
+        "-vn", output_audio, "-loglevel", "error", "-y"
     ]
     subprocess.run(command, check=True)

@@ -11,8 +11,11 @@ def create_srt(transcription):
         for idx, segment in enumerate(transcription["segments"]):
             start_time = seconds_to_srt_time(segment["start"])
             end_time = seconds_to_srt_time(segment["end"])
+            speaker = segment.get("speaker", "Unknown")
             text = segment["text"].strip()
-            f.write(f"{idx+1}\n{start_time} --> {end_time}\n{text}\n\n")
+
+            f.write(f"{idx+1}\n{start_time} --> {end_time}\n{speaker}\n{text}\n\n")
+
     return output_path
 
 def seconds_to_srt_time(seconds):
@@ -20,19 +23,31 @@ def seconds_to_srt_time(seconds):
     seconds = int(seconds)
     hours, remainder = divmod(seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
+
     return f"{hours:02}:{minutes:02}:{seconds:02},{millisec:03}"
 
 def parse_srt(srt_file):
-    srt_pattern = re.compile(r"(\d+)\s*\n(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})\s*\n([\s\S]*?)(?=\n\d+\s*\n|\Z)")
+    srt_pattern = re.compile(
+        r"(\d+)\s*\n"  # 인덱스 번호
+        r"(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})\s*\n"  # 타임스탬프
+        r"([^\n]+)\n"  # Speaker 정보 (한 줄)
+        r"([\s\S]+?)(?=\n\d+\s*\n|\Z)"  # 자막 내용
+    )
+
     with open(srt_file, "r", encoding="utf-8") as file:
         content = file.read()
+
     matches = srt_pattern.findall(content)
     subtitles = []
-    for _, start, end, text in matches:
+
+    for _, start, end, speaker, text in matches:
         start_seconds = srt_time_to_seconds(start)
         end_seconds = srt_time_to_seconds(end)
         text = text.strip().replace("\n", " ")
-        subtitles.append({"start": start_seconds, "end": end_seconds, "text": text})
+        speaker = speaker if speaker else "Unknown"
+
+        subtitles.append({"start": start_seconds, "end": end_seconds, "speaker": speaker, "text": text})
+
     return subtitles
 
 def srt_time_to_seconds(time_str):
