@@ -27,8 +27,8 @@ from main import regenerate_video_from_srt
 
 CSS_PATH = "ui/style.css"
 
-available_languages = ["KO"]
-target_languages = ["EN", "JA", "ZH-HANT"]
+available_languages = ["KO", "EN", "JA", "DE", "ZH", "ES", "FI", "FR", "IT", "PT", "RU"]
+target_languages = ["EN", "JA", "DE", "ZH-HANT", "ZH-HANS", "ES", "FI", "FR", "IT", "PT-PT", "PT-BR", "RU", "KO"]
 speaker_indices = [f"Speaker_0{i}" for i in range(5)]
 voice_models = get_voice_list()
 
