@@ -1,6 +1,6 @@
 from video_processing.downloader import download_youtube_video
 from video_processing.trimmer import trim_video
-from video_processing.audio_extractor import extract_audio_from_video
+from video_processing.audio_extractor import extract_audio_from_video, audio_preprocessing
 from video_processing.vocal_separation import separate_background_audio
 from video_processing.transcription import transcribe_audio_whisper, refine_srt_with_gpt
 from video_processing.srt_utils import create_srt
@@ -27,13 +27,13 @@ def process_video(video_url, source_lang, target_lang, voice_id, start_time="00:
     print("🎚️ 4. Demucs로 보컬 분리 중...")
     separate_background_audio(audio_file)
     
-    # 5. isolation 음성 분리
-    print("🎙️ 5. isolation 음성 분리 중...")
-    isolation_audio = extract_speech_with_elevenlabs(audio_file, "isolation_audio.wav")
+    # 5. 16kHz, Mono 변환
+    print("🎚️ 5. 16kHz, Mono 변환 중...")
+    preprocessed_audio_file = audio_preprocessing(audio_file)
 
     # 6. 음성 → 텍스트 변환 (Whisper)
     print("📝 6. 음성 → 텍스트 변환 중...")
-    transcription = transcribe_audio_whisper(isolation_audio, num_speakers)
+    transcription = transcribe_audio_whisper(preprocessed_audio_file, num_speakers)
 
     # 7. Whisper json -> .srt 파일 변환
     print("📝 7. Whisper json -> .srt 파일 변환...")
