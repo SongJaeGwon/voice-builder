@@ -27,3 +27,12 @@ $ python -m ui.gradio_app
 ```
 
 Then go to the URL http://127.0.0.1:7860
+
+#### Development
+
+To develop Gradio UI, you need to set environment variable.
+
+```shell
+$ cd ./voice-builder
+$ export PYTHONPATH=$(pwd)
+```

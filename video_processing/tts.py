@@ -43,17 +43,13 @@ def extract_speech_with_elevenlabs(input_audio, output_audio):
 
     return output_path
 
-def generate_tts_with_timestamps(srt_file, default_voice_id, filename="tts_audio.mp3"):
+def generate_tts_with_timestamps(srt_file, speaker_voice_id_list, filename="tts_audio.mp3"):
     output_path = get_file_path(filename)
     subtitles = parse_srt(srt_file)
     combined_audio = AudioSegment.silent(duration=0)
     previous_ids = []
 
-    SPEAKER_VOICE_MAP = {
-        "SPEAKER_00": "wK2ecfMAOpcxAVpCWcbM",  # 신규진
-        "SPEAKER_01": "NPbcnWITbx0yts3UOKWq",  # 정재희
-        "SPEAKER_02": "kCTvpt8VOkjU7jZ7XB2w",  # 탁재훈
-    }
+    speaker_voice_map = convert_list_to_speaker_map(speaker_voice_id_list)
 
     for idx, subtitle in enumerate(subtitles):
         text = subtitle["text"]
@@ -62,12 +58,12 @@ def generate_tts_with_timestamps(srt_file, default_voice_id, filename="tts_audio
         end_ms = int(subtitle["end"] * 1000)
         duration_ms = end_ms - start_ms
 
-        voice_id = SPEAKER_VOICE_MAP.get(speaker, default_voice_id)  # 기본값 적용
+        # voice_id = SPEAKER_VOICE_MAP.get(speaker, default_voice_id)  # 기본값 적용
+        voice_id = speaker_voice_map.get(speaker, speaker_voice_id_list[0])  # 기본값 적용
 
         temp_tts_file = f"temp_{idx}.mp3"
         
         request_id = generate_speech_with_elevenlabs(text, voice_id, temp_tts_file, previous_ids)
-
         if request_id:
             previous_ids.append(request_id)  # 새 ID 추가
             previous_ids = previous_ids[-3:]  # 최대 3개까지만 유지
@@ -159,3 +155,18 @@ def adjust_audio_speed(input_audio, output_audio, speed_factor):
         "-vn", output_audio, "-loglevel", "error", "-y"
     ]
     subprocess.run(command, check=True)
+
+
+def convert_list_to_speaker_map(voice_id_list):
+    """
+    voice_id_list의 각 원소를 SPEAKER_XX 형식의 key에 할당하여 dictionary로 반환합니다.
+    예: ['id0', 'id1', 'id2', 'id3', 'id4'] ->
+        {
+            "SPEAKER_00": "id0",
+            "SPEAKER_01": "id1",
+            "SPEAKER_02": "id2",
+            "SPEAKER_03": "id3",
+            "SPEAKER_04": "id4",
+        }
+    """
+    return {f"SPEAKER_{i:02}": voice_id for i, voice_id in enumerate(voice_id_list)}

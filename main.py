@@ -9,8 +9,7 @@ from video_processing.tts import generate_tts_with_timestamps, extract_speech_wi
 from video_processing.merging import merge_audio_with_video, merge_background_with_tts
 from video_processing.file_manager import get_file_path
 
-def process_video(video_url, source_lang, target_lang, voice_id, start_time="00:00:00", end_time="00:00:30", num_speakers=None):
-
+def process_video(video_url, source_lang, target_lang, num_speakers, speaker_voice_map, start_time="00:00:00", end_time="00:00:30"):
     # 1. 영상 다운로드
     print("📥 1. 유튜브 영상 다운로드 중...")
     video_file = download_youtube_video(video_url)
@@ -49,7 +48,7 @@ def process_video(video_url, source_lang, target_lang, voice_id, start_time="00:
     
     # 10. 타임스탬프 기반 TTS 생성
     print("🔊 10. 타임스탬프 기반 TTS 생성 중...")
-    tts_audio = generate_tts_with_timestamps(translated_srt, voice_id)
+    tts_audio = generate_tts_with_timestamps(translated_srt, speaker_voice_map)
     
     # 11. 배경음과 TTS 합성
     print("🎵 11. background audio 합치는 중...")
@@ -62,10 +61,10 @@ def process_video(video_url, source_lang, target_lang, voice_id, start_time="00:
     print("✅ 최종 파일 생성:", final_video)
     return final_video
 
-def regenerate_video_from_srt(voice_id):
+def regenerate_video_from_srt(speaker_voice_map):
     # 7. 타임스탬프 기반 TTS 생성
     print("🔊 7. 타임스탬프 기반 TTS 생성 중...")
-    tts_audio = generate_tts_with_timestamps(get_file_path("translated.srt"), voice_id)
+    tts_audio = generate_tts_with_timestamps(get_file_path("translated.srt"), speaker_voice_map)
 
     # 8. 배경음과 TTS 합성
     print("🎵 8. background audio 합치는 중...")
@@ -83,10 +82,15 @@ if __name__ == "__main__":
     video_url = "https://www.youtube.com/watch?v=A-ObLLp6GYc"  # 로컬 파일 경로 또는 다운로드 URL
     source_lang = "KO" # 원본파일 언어
     target_lang = "EN" # 번역할 언어
-    voice_id = "ir1CeAgkMhxW2txdJpxQ" # 일레븐랩스 보이스 id
+    # speaker_voice_map = "ir1CeAgkMhxW2txdJpxQ" # 일레븐랩스 보이스 id
+    speaker_voice_map = [
+        "wK2ecfMAOpcxAVpCWcbM",  # 신규진
+        "NPbcnWITbx0yts3UOKWq",  # 정재희
+        "kCTvpt8VOkjU7jZ7XB2w",  # 탁재훈
+    ]
     start_time = "00:00:00"
     end_time = "00:00:30"
     num_speakers = 3; # 화자 몇명인지
 
-    # regenerate_video_from_srt(voice_id)
-    process_video(video_url, source_lang, target_lang, voice_id, start_time, end_time, num_speakers)
+    # regenerate_video_from_srt(speaker_voice_map)
+    process_video(video_url, source_lang, target_lang, num_speakers, speaker_voice_map, start_time, end_time)
