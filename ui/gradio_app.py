@@ -68,8 +68,36 @@ def update_dropdown_visibility(slider_value):
             updates.append(gr.update(visible=False))
     return updates
 
+
+js = """
+function playVideoSrtTime(srtTimeStr) {
+  if (!srtTimeStr) {
+    return;
+  }
+
+  const parts = srtTimeStr.split(/[:,]/);
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  const seconds = parseInt(parts[2], 10);
+  const milliseconds = parseInt(parts[3], 10);
+
+  const finalSeconds = hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+  const video = document.querySelector('[data-testid="변환된 동영상-player"]');
+  if (video) {
+    video.currentTime = finalSeconds;
+  } else {
+    console.error("비디오 요소를 찾을 수 없습니다.");
+  }
+}
+"""
+def on_text_change(text):
+    print(text)
+    # 여기서는 단순히 입력값을 그대로 반환합니다.
+    return text
+
 with gr.Blocks(
     css_paths=CSS_PATH,
+    js=js,
     theme=gr.themes.Soft(
         primary_hue=gr.themes.colors.neutral,
         secondary_hue=gr.themes.colors.amber,
@@ -158,20 +186,15 @@ with gr.Blocks(
         with gr.Column(scale=3):
             output_video = gr.PlayableVideo(
                 label="변환된 동영상",
-                interactive=False
+                interactive=False,
+
             )
             with gr.Group():
                 with gr.Row():
                     textbox_start = gr.Textbox(label="start", interactive=False, scale=1, placeholder="숫자 입력")
                     textbox_end = gr.Textbox(label="end", interactive=True, scale=1, placeholder="숫자 입력")
                     speaker_list = gr.Textbox(label="화자", interactive=True, scale=1, placeholder="SPEAKER_0n 입력")
-                    # speaker_list = gr.Dropdown(
-                    #     label="화자",
-                    #     choices=speaker_indices[:1],
-                    #     value=speaker_indices[0],
-                    #     interactive=True,
-                    #     scale=10
-                    # )
+
                 with gr.Row():
                     textbox_original = gr.Textbox(label="원본", interactive=True, placeholder="번역 전")
                     textbox_translation = gr.Textbox(label="번역", interactive=True, placeholder="번역 후")
@@ -183,6 +206,13 @@ with gr.Blocks(
                 examples_per_page=50,
                 examples=[["00:00:00,000", "00:00:01,000", "SPEAKER_00", "예시", "example"]],
                 inputs=[textbox_start, textbox_end, speaker_list, textbox_original, textbox_translation],
+            )
+
+            textbox_start.change(
+                fn=on_text_change,
+                inputs=textbox_start,
+                outputs=usr_msg,
+                js=js,
             )
 
         with gr.Column(scale=1):
