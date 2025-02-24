@@ -29,6 +29,7 @@ CSS_PATH = "ui/style.css"
 
 available_languages = ["KO"]
 target_languages = ["EN", "JA", "ZH-HANT"]
+speaker_indices = [f"Speaker_0{i}" for i in range(5)]
 voice_models = get_voice_list()
 
 # Config 파일 로드를 위한 경로 추가
@@ -36,7 +37,37 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-# <---------- GUI ---------->
+def update_dropdown(speaker_count):
+    # Limit the choices to the first 'speaker_count' speakers.
+    choices = speaker_indices[:speaker_count]
+    default_value = choices[0] if choices else None
+    return gr.Dropdown(choices=choices, value=default_value)
+
+# 초기값이 아닌, 변경 시 업데이트될 값들을 저장하는 리스트
+all_dropdowns = [""]
+
+# 전역에 Dropdown 참조를 저장할 리스트
+dd_list = []
+
+def create_change_func(*dropdown_values):
+    # 모든 Dropdown의 값을 다시 수집합니다.
+    all_dropdowns.clear()
+    for value in dropdown_values:
+        if value:
+            processed_value = value.split("(")[-1].rstrip(")").strip()
+            all_dropdowns.append(processed_value)
+    print(f"\033[92mUpdated dropdown values: {all_dropdowns}\033[0m")
+
+# 슬라이더 값에 따라 미리 생성된 Dropdown의 표시 여부를 업데이트하는 함수
+def update_dropdown_visibility(slider_value):
+    updates = []
+    for i in range(len(dd_list)):
+        if i < slider_value:
+            updates.append(gr.update(visible=True))
+        else:
+            updates.append(gr.update(visible=False))
+    return updates
+
 with gr.Blocks(
     css_paths=CSS_PATH,
     theme=gr.themes.Soft(
@@ -54,6 +85,10 @@ with gr.Blocks(
         '''
     )
     usr_msg = gr.State()
+
+    # 미리 Dropdown에 들어갈 voice_choices 생성
+    voice_choices = {f"{name} ({id})": id for id, name in voice_models.items()}
+
     with gr.Row():
         with gr.Column(scale=1):
             with gr.Row():
@@ -69,22 +104,35 @@ with gr.Blocks(
                     value=target_languages[0],
                     interactive=True
                 )
-            with gr.Row():
-                voice_choices = {f"{name} ({id})": id for id, name in voice_models.items()}
-                selected_voice = gr.Dropdown(
-                    label="음성 선택",
-                    choices=list(voice_choices.keys()),
-                    interactive=True
+            with gr.Group():
+                speaker_slider_state = gr.State(value=1)
+                speaker_slider = gr.Slider(1, 5, value=1, label="화자 수", info="영상에 나오는 목소리 수", interactive=True, step=1)
+
+                # 미리 최대 5개의 Dropdown을 생성하여 dd_container에 추가 (초기 slider 값은 1이므로 첫 번째만 보임)
+                with gr.Column() as dd_container:
+                    for i in range(5):
+                        dd = gr.Dropdown(
+                            label=f"Speaker_0{i}",
+                            choices=list(voice_choices.keys()),
+                            interactive=True,
+                            visible=True if i < 1 else False
+                        )
+                        dd_list.append(dd)
+                    # 각 Dropdown의 change 이벤트에 모든 Dropdown 값을 인자로 전달하도록 등록합니다.
+                    for dd in dd_list:
+                        dd.change(fn=create_change_func, inputs=dd_list)
+                # 슬라이더 값 변경 시, 각 Dropdown의 표시 여부 업데이트
+                speaker_slider.change(
+                    fn=update_dropdown_visibility,
+                    inputs=[speaker_slider],
+                    outputs=dd_list
                 )
             active_tab_state = gr.State(value="")
             with gr.Tab(label="유튜브 URL", id="url") as tab_url:
                 input_url = gr.Textbox(
                     label="유튜브 URL",
                 )
-            with gr.Tab(label="동영상 업로드", id="file", interactive=False) as tab_file:
-                input_video = gr.Video(
-                    label="동영상 파일",
-                )
+
             with gr.Row():
                 timestamp_start = gr.Textbox(
                     label="시작 - 종료 시간",
@@ -100,15 +148,13 @@ with gr.Blocks(
                     interactive=True,
                 )
 
-            tab_file.select(
-                fn=lambda: selected_upload_method("file"),
-                outputs=active_tab_state
-            )
             tab_url.select(
                 fn=lambda: selected_upload_method("url"),
                 outputs=active_tab_state
             )
             start_btn = gr.Button("🔲 전체 시작")
+            regenerate_video_btn = gr.Button("🔃 수정된 자막으로 재생성", interactive=False)
+
         with gr.Column(scale=3):
             output_video = gr.PlayableVideo(
                 label="변환된 동영상",
@@ -116,27 +162,33 @@ with gr.Blocks(
             )
             with gr.Group():
                 with gr.Row():
-                    textbox_start = gr.Textbox(label="start", interactive=True, placeholder="숫자 입력")
-                    textbox_end = gr.Textbox(label="end", interactive=True, placeholder="숫자 입력")
+                    textbox_start = gr.Textbox(label="start", interactive=False, scale=1, placeholder="숫자 입력")
+                    textbox_end = gr.Textbox(label="end", interactive=True, scale=1, placeholder="숫자 입력")
+                    speaker_list = gr.Textbox(label="화자", interactive=True, scale=1, placeholder="SPEAKER_0n 입력")
+                    # speaker_list = gr.Dropdown(
+                    #     label="화자",
+                    #     choices=speaker_indices[:1],
+                    #     value=speaker_indices[0],
+                    #     interactive=True,
+                    #     scale=10
+                    # )
                 with gr.Row():
                     textbox_original = gr.Textbox(label="원본", interactive=True, placeholder="번역 전")
                     textbox_translation = gr.Textbox(label="번역", interactive=True, placeholder="번역 후")
 
                 update_srt_btn = gr.Button("수정하기")
 
-
             srt_examples = gr.Examples(
                 label="자막 (srt 파일)",
                 examples_per_page=50,
-                examples=[["00:00:00,000", "00:00:01,000", "예시", "example"]],
-                inputs=[textbox_start, textbox_end, textbox_original, textbox_translation],
+                examples=[["00:00:00,000", "00:00:01,000", "SPEAKER_00", "예시", "example"]],
+                inputs=[textbox_start, textbox_end, speaker_list, textbox_original, textbox_translation],
             )
 
         with gr.Column(scale=1):
             with gr.Group():
                 gr.Label("⚙️ 제어판", show_label=False, elem_classes="header")
-                retranslate_btn = gr.Button("📝 번역 재시도", interactive=False)
-                regenerate_video_btn = gr.Button("🔃 영상 재생성", interactive=False)
+                # retranslate_btn = gr.Button("📝 번역 재시도", interactive=False)
 
                 progress_label = gr.Textbox(label="진행 상황", interactive=False)
 
@@ -148,8 +200,16 @@ with gr.Blocks(
         inputs=[],
         outputs=[start_btn]
     ).success(
-        fn=lambda input_url, original_language, target_language, selected_voice, timestamp_start, timestamp_end: process_video(input_url, original_language, target_language, selected_voice.split("(")[-1].rstrip(")").strip(), timestamp_start, timestamp_end),
-        inputs=[input_url, original_language, target_language, selected_voice, timestamp_start, timestamp_end],
+        fn=lambda *args: process_video(
+            args[0],  # input_url
+            args[1],  # original_language
+            args[2],  # target_language
+            args[3],  # speaker_slider_state
+            [x.split("(")[-1].rstrip(")").strip() for x in args[4:-2] if x],  # 드롭다운 값들 처리
+            args[-2],  # timestamp_start
+            args[-1]   # timestamp_end
+        ),
+        inputs=[input_url, original_language, target_language, speaker_slider_state, *dd_list, timestamp_start, timestamp_end],
         outputs=progress_label
     ).success(
         fn=lambda video_path: video_path,
@@ -160,23 +220,30 @@ with gr.Blocks(
         inputs=[],
         outputs=[srt_examples.dataset]
     ).success(
-        lambda: [gr.Button(interactive=True, value="🔲 전체 재시작"), gr.Button(interactive=True)],
+        fn=lambda: [gr.Button(interactive=True, value="🔲 전체 재시작"), gr.Button(interactive=True)],
         inputs=[],
         outputs=[start_btn, regenerate_video_btn]
     )
-
     # <---------- 자막 수정하기 버튼 ---------->
     update_srt_btn.click(
         fn=update_srt_dataset,
-        inputs=[textbox_start, textbox_end, textbox_original, textbox_translation],
+        inputs=[textbox_start, textbox_end, speaker_list, textbox_original, textbox_translation],
         outputs=[srt_examples.dataset, textbox_start, textbox_end, textbox_original, textbox_translation]
     )
 
     # <---------- 영상 재생성 버튼 ---------->
     regenerate_video_btn.click(
-        fn=lambda selected_voice: regenerate_video_from_srt(selected_voice.split("(")[-1].rstrip(")").strip()),
-        inputs=[selected_voice],
+        fn=lambda *args: regenerate_video_from_srt(
+            [x.split("(")[-1].rstrip(")").strip() for x in args if x]
+        ),
+        inputs=[*dd_list],
         outputs=[output_video]
+    )
+
+    speaker_slider.change(
+        fn=lambda slider_value: slider_value,
+        inputs=speaker_slider,
+        outputs=speaker_slider_state
     )
 
 if __name__ == "__main__":
