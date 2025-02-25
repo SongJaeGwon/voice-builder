@@ -246,6 +246,10 @@ with gr.Blocks(
         inputs=[progress_label],
         outputs=[output_video]
     ).success(
+        fn=lambda: gr.update(value="downloads/final_video.mp4"), # Update download button value
+        inputs=[],
+        outputs=[d]
+    ).success(
         fn=lambda: gr.Dataset(samples=parse_srt_files('downloads/transcription_refined.srt', 'downloads/translated.srt')),
         inputs=[],
         outputs=[srt_examples.dataset]
@@ -268,6 +272,10 @@ with gr.Blocks(
         ),
         inputs=[*dd_list],
         outputs=[output_video]
+    ).success(
+        fn=lambda: gr.update(value="downloads/final_video.mp4"), # Update download button value
+        inputs=[],
+        outputs=[d]
     )
 
     speaker_slider.change(
