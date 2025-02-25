@@ -1,4 +1,4 @@
-from video_processing.downloader import download_youtube_video
+from video_processing.downloader import download_youtube_video, extract_whisper_prompt_from_youtube
 from video_processing.trimmer import trim_video
 from video_processing.audio_extractor import extract_audio_from_video, audio_preprocessing
 from video_processing.vocal_separation import separate_background_audio
@@ -13,6 +13,7 @@ def process_video(video_url, source_lang, target_lang, num_speakers, speaker_voi
     # 1. 영상 다운로드
     print("📥 1. 유튜브 영상 다운로드 중...")
     video_file = download_youtube_video(video_url)
+    whisper_prompt = extract_whisper_prompt_from_youtube(video_url)
 
     # 2. 영상 자르기
     print("2. FFmpeg로 영상 자르기...")
@@ -32,7 +33,7 @@ def process_video(video_url, source_lang, target_lang, num_speakers, speaker_voi
 
     # 6. 음성 → 텍스트 변환 (Whisper)
     print("📝 6. 음성 → 텍스트 변환 중...")
-    transcription = transcribe_audio_whisper(preprocessed_audio_file, num_speakers)
+    transcription = transcribe_audio_whisper(preprocessed_audio_file, whisper_prompt, num_speakers)
 
     # 7. Whisper json -> .srt 파일 변환
     print("📝 7. Whisper json -> .srt 파일 변환...")

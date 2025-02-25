@@ -6,7 +6,7 @@ diarization_pipeline = SpeakerDiarization.from_pretrained(
     use_auth_token=HF_TOKEN
 )
 
-def transcribe_audio_whisper(audio_file, num_speakers=None, model="whisper-1"):
+def transcribe_audio_whisper(audio_file, whisper_prompt, num_speakers=None, model="whisper-1"):
     client = openai.OpenAI(api_key=OPEN_AI_TOKEN)
 
     # 🔹 OpenAI Whisper API 요청
@@ -16,6 +16,7 @@ def transcribe_audio_whisper(audio_file, num_speakers=None, model="whisper-1"):
             file=file,
             response_format="verbose_json",
             timestamp_granularities=["segment", "word"],
+            prompt=whisper_prompt
         )
 
     response_json = response.model_dump()
